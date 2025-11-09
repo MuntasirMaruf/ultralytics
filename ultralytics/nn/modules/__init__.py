@@ -23,6 +23,7 @@ from .block import (
     C2PSA,
     C3,
     C3TR,
+    CBAMCustom,
     CIB,
     DFL,
     ELAN1,
@@ -58,6 +59,7 @@ from .block import (
     RepVGGDW,
     ResNetLayer,
     SCDown,
+    SimAM,
     TorchVision,
 )
 from .conv import (
@@ -110,6 +112,7 @@ __all__ = (
     "C3",
     "C3TR",
     "CBAM",
+    "CBAMCustom",
     "CIB",
     "DFL",
     "ELAN1",
@@ -171,6 +174,7 @@ __all__ = (
     "SCDown",
     "Segment",
     "SpatialAttention",
+    "SimAM",
     "TorchVision",
     "TransformerBlock",
     "TransformerEncoderLayer",

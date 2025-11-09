@@ -1,0 +1,21 @@
+
+path: D:/Projects/Thesis/Datasets/road_ds_new  
+train: train/images
+val: valid/images
+test: test/images
+
+# Classes (10 vehicle types)
+names:
+  0: bus
+  1: car
+  2: cng_auto
+  3: minivan
+  4: two_wheeler
+  5: person
+  6: pickup_truck
+  7: rickshaw
+  8: suv
+  9: truck
+
+# Number of classes
+nc: 10

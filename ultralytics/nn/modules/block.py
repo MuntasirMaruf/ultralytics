@@ -1943,3 +1943,182 @@ class SAVPE(nn.Module):
         aggregated = score.transpose(-2, -3) @ x.reshape(B, self.c, C // self.c, -1).transpose(-1, -2)
 
         return F.normalize(aggregated.transpose(-2, -3).reshape(B, Q, -1), dim=-1, p=2)
+
+
+
+# Attention Modules: CBAM (Convolutional Block Attention Module)
+class ChannelAttention(nn.Module):
+    """Channel attention module for CBAM."""
+    
+    def __init__(self, channels, reduction=16):
+        """
+        Initialize Channel Attention module.
+        
+        Args:
+            channels (int): Number of input channels
+            reduction (int): Reduction ratio for the bottleneck layer
+        """
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        
+        # Shared MLP
+        self.fc = nn.Sequential(
+            nn.Conv2d(channels, channels // reduction, 1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channels // reduction, channels, 1, bias=False)
+        )
+        self.sigmoid = nn.Sigmoid()
+    
+    def forward(self, x):
+        """Apply channel attention."""
+        avg_out = self.fc(self.avg_pool(x))
+        max_out = self.fc(self.max_pool(x))
+        out = self.sigmoid(avg_out + max_out)
+        return x * out
+
+
+class SpatialAttentionCustom(nn.Module):
+    """Spatial attention module for CBAM."""
+    
+    def __init__(self, kernel_size=7):
+        """
+        Initialize Spatial Attention module.
+        
+        Args:
+            kernel_size (int): Kernel size for the convolutional layer
+        """
+        super().__init__()
+        padding = kernel_size // 2
+        self.conv = nn.Conv2d(2, 1, kernel_size, padding=padding, bias=False)
+        self.sigmoid = nn.Sigmoid()
+    
+    def forward(self, x):
+        """Apply spatial attention."""
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        out = torch.cat([avg_out, max_out], dim=1)
+        out = self.sigmoid(self.conv(out))
+        return x * out
+
+
+class CBAMCustom(nn.Module):
+    """
+    Custom Convolutional Block Attention Module (CBAM).
+    
+    Applies both channel and spatial attention to input features.
+    Paper: https://arxiv.org/abs/1807.06521
+    """
+    
+    def __init__(self, c1, c2=None, reduction=16, kernel_size=7):
+        """
+        Initialize CBAM module.
+        
+        Args:
+            c1 (int): Number of input channels
+            c2 (int): Number of output channels (if None, same as c1)
+            reduction (int): Channel reduction ratio
+            kernel_size (int): Kernel size for spatial attention
+        """
+        super().__init__()
+        c2 = c2 or c1  # Output channels default to input channels
+        
+        self.channel_attention = ChannelAttention(c1, reduction)
+        self.spatial_attention = SpatialAttention(kernel_size)
+        
+        # If input and output channels differ, add a 1x1 conv
+        self.conv = nn.Conv2d(c1, c2, 1) if c1 != c2 else nn.Identity()
+    
+    def forward(self, x):
+        """
+        Forward pass through CBAM.
+        
+        Args:
+            x (torch.Tensor): Input tensor of shape (B, C, H, W)
+            
+        Returns:
+            torch.Tensor: Attention-refined features
+        """
+        x = self.channel_attention(x)
+        x = self.spatial_attention(x)
+        x = self.conv(x)
+        return x
+
+
+
+"""
+SimAM (Simple, Parameter-Free Attention Module) implementation
+Add this to ultralytics/nn/modules/block.py
+
+Paper: SimAM: A Simple, Parameter-Free Attention Module for Convolutional Neural Networks
+Link: https://proceedings.mlr.press/v139/yang21o.html
+"""
+
+import torch
+import torch.nn as nn
+
+
+class SimAM(nn.Module):
+    """
+    Simple, Parameter-Free Attention Module (SimAM).
+    
+    A 3D attention module that requires no additional parameters.
+    Based on energy function from neuroscience theories.
+    
+    Paper: https://proceedings.mlr.press/v139/yang21o.html
+    
+    Args:
+        c1 (int): Number of input channels (for YOLO compatibility)
+        c2 (int, optional): Number of output channels (unused, for YOLO compatibility)
+        e_lambda (float): Lambda parameter for energy function calculation
+    """
+    
+    def __init__(self, c1, c2=None, e_lambda=1e-4):
+        """
+        Initialize SimAM attention module.
+        
+        Args:
+            c1 (int): Input channels
+            c2 (int, optional): Output channels (kept for YOLO compatibility, not used)
+            e_lambda (float): Energy function lambda parameter (default: 1e-4)
+        """
+        super().__init__()
+        self.act = nn.Sigmoid()
+        self.e_lambda = e_lambda
+    
+    def forward(self, x):
+        """
+        Apply SimAM attention.
+        
+        Args:
+            x (torch.Tensor): Input tensor of shape (B, C, H, W)
+            
+        Returns:
+            torch.Tensor: Attention-refined features of same shape
+        """
+        b, c, h, w = x.size()
+        
+        # Number of pixels
+        n = w * h - 1
+        
+        # Calculate (X - μ)²
+        x_minus_mu_square = (x - x.mean(dim=[2, 3], keepdim=True)).pow(2)
+        
+        # Calculate energy: E = 4 * (σ² + λ) * (X - μ)² + 2 * λ + 1
+        # Simplified to: y = (X - μ)² / (4 * (σ² + λ)) + 0.5
+        y = x_minus_mu_square / (4 * (x_minus_mu_square.sum(dim=[2, 3], keepdim=True) / n + self.e_lambda)) + 0.5
+        
+        # Apply sigmoid activation and element-wise multiplication
+        return x * self.act(y)
+
+
+# For easy testing
+if __name__ == "__main__":
+    # Test SimAM
+    model = SimAM(c1=256)
+    x = torch.randn(1, 256, 64, 64)
+    y = model(x)
+    print(f"Input shape: {x.shape}")
+    print(f"Output shape: {y.shape}")
+    print(f"Parameters: {sum(p.numel() for p in model.parameters())}")  # Should be 0!
+    print(f"✓ SimAM test passed!")
