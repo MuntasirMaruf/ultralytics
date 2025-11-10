@@ -140,9 +140,7 @@ def test_baseline_comparison():
         # Load SimAM version
         print("  Loading YOLO11n-SimAM...")
         yaml_locations = [
-            'yolo11-simam.yaml',
-            'ultralytics/cfg/models/11/yolo11-simam.yaml',
-            os.path.join('ultralytics', 'cfg', 'models', '11', 'yolo11-simam.yaml'),
+            "/kaggle/working/ultralytics_simam/ultralytics/cfg/models/11/yolo11-simam.yaml"
         ]
         
         simam_model = None
