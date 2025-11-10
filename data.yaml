@@ -1,5 +1,5 @@
 
-path: D:/Projects/Thesis/Datasets/road_ds_new  
+path: /kaggle/input/new-road-ds-bd/road_ds_new  
 train: train/images
 val: valid/images
 test: test/images
