@@ -21,7 +21,7 @@ class MultiModelTrainer:
         
         # Fixed training configuration
         self.config = {
-            "epochs": 100,
+            "epochs": 200,
             "batch": 32,
             "imgsz": 640,
             "lr0": 0.003,
