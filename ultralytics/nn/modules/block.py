@@ -18,6 +18,7 @@ __all__ = (
     "C2PSA",
     "C3",
     "C3TR",
+    "CBAMCustom",
     "CIB",
     "DFL",
     "ELAN1",
@@ -1978,7 +1979,7 @@ class ChannelAttention(nn.Module):
         return x * out
 
 
-class SpatialAttentionCustom(nn.Module):
+class SpatialAttention(nn.Module):
     """Spatial attention module for CBAM."""
     
     def __init__(self, kernel_size=7):
@@ -2008,26 +2009,44 @@ class CBAMCustom(nn.Module):
     
     Applies both channel and spatial attention to input features.
     Paper: https://arxiv.org/abs/1807.06521
+    
+    CRITICAL: For YOLO integration, c1 must have a default value of None
+    so the parser can automatically infer channels from the previous layer.
     """
     
-    def __init__(self, c1, c2=None, reduction=16, kernel_size=7):
+    def __init__(self, c1=None, c2=None, reduction=16, kernel_size=7):
         """
         Initialize CBAM module.
         
         Args:
-            c1 (int): Number of input channels
-            c2 (int): Number of output channels (if None, same as c1)
+            c1 (int, optional): Number of input channels (auto-inferred if None)
+            c2 (int, optional): Number of output channels (defaults to c1 if None)
             reduction (int): Channel reduction ratio
             kernel_size (int): Kernel size for spatial attention
         """
         super().__init__()
-        c2 = c2 or c1  # Output channels default to input channels
         
-        self.channel_attention = ChannelAttention(c1, reduction)
-        self.spatial_attention = SpatialAttention(kernel_size)
+        # For YOLO compatibility: c1 will be set by the parser
+        # Store it for later initialization in forward pass
+        self.c1 = c1
+        self.c2 = c2 or c1
+        self.reduction = reduction
+        self.kernel_size = kernel_size
+        
+        # Initialize modules only if c1 is provided
+        if c1 is not None:
+            self._init_modules()
+    
+    def _init_modules(self):
+        """Initialize attention modules after channels are known."""
+        self.channel_attention = ChannelAttention(self.c1, self.reduction)
+        self.spatial_attention = SpatialAttention(self.kernel_size)
         
         # If input and output channels differ, add a 1x1 conv
-        self.conv = nn.Conv2d(c1, c2, 1) if c1 != c2 else nn.Identity()
+        if self.c2 is not None and self.c1 != self.c2:
+            self.conv = nn.Conv2d(self.c1, self.c2, 1)
+        else:
+            self.conv = nn.Identity()
     
     def forward(self, x):
         """
@@ -2039,23 +2058,19 @@ class CBAMCustom(nn.Module):
         Returns:
             torch.Tensor: Attention-refined features
         """
+        # Lazy initialization: infer channels from input if not set
+        if self.c1 is None:
+            self.c1 = x.shape[1]
+            if self.c2 is None:
+                self.c2 = self.c1
+            self._init_modules()
+            # Move modules to the same device as input
+            self.to(x.device)
+        
         x = self.channel_attention(x)
         x = self.spatial_attention(x)
         x = self.conv(x)
         return x
-
-
-
-"""
-SimAM (Simple, Parameter-Free Attention Module) implementation
-Add this to ultralytics/nn/modules/block.py
-
-Paper: SimAM: A Simple, Parameter-Free Attention Module for Convolutional Neural Networks
-Link: https://proceedings.mlr.press/v139/yang21o.html
-"""
-
-import torch
-import torch.nn as nn
 
 
 class SimAM(nn.Module):
