@@ -1,5 +1,5 @@
 
-path: /kaggle/input/new-road-ds-bd/road_ds_new  
+path: ../road_ds_new  
 train: train/images
 val: valid/images
 test: test/images
