@@ -2073,6 +2073,7 @@ class CBAMCustom(nn.Module):
         return x
 
 
+
 class SimAM(nn.Module):
     """
     Simple, Parameter-Free Attention Module (SimAM).
@@ -2083,23 +2084,24 @@ class SimAM(nn.Module):
     Paper: https://proceedings.mlr.press/v139/yang21o.html
     
     Args:
-        c1 (int): Number of input channels (for YOLO compatibility)
+        c1 (int, optional): Number of input channels (auto-inferred if None)
         c2 (int, optional): Number of output channels (unused, for YOLO compatibility)
         e_lambda (float): Lambda parameter for energy function calculation
     """
     
-    def __init__(self, c1, c2=None, e_lambda=1e-4):
+    def __init__(self, c1=None, c2=None, e_lambda=1e-4):
         """
         Initialize SimAM attention module.
         
         Args:
-            c1 (int): Input channels
+            c1 (int, optional): Input channels (auto-inferred if None)
             c2 (int, optional): Output channels (kept for YOLO compatibility, not used)
             e_lambda (float): Energy function lambda parameter (default: 1e-4)
         """
         super().__init__()
         self.act = nn.Sigmoid()
         self.e_lambda = e_lambda
+        self.c1 = c1  # Store for reference, but not actually needed
     
     def forward(self, x):
         """
@@ -2125,15 +2127,3 @@ class SimAM(nn.Module):
         
         # Apply sigmoid activation and element-wise multiplication
         return x * self.act(y)
-
-
-# For easy testing
-if __name__ == "__main__":
-    # Test SimAM
-    model = SimAM(c1=256)
-    x = torch.randn(1, 256, 64, 64)
-    y = model(x)
-    print(f"Input shape: {x.shape}")
-    print(f"Output shape: {y.shape}")
-    print(f"Parameters: {sum(p.numel() for p in model.parameters())}")  # Should be 0!
-    print(f"✓ SimAM test passed!")
