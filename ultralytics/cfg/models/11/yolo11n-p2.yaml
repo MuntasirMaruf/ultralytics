@@ -1,11 +1,11 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
 # YOLO11n object detection model with P2 head for small object detection
-# Optimized for dashcam vehicle detection
+# Simplified version - no backbone concatenation at P2 level
 
 # Parameters
-nc: 3  # CHANGE THIS to your number of classes (e.g., car, truck, motorcycle)
+nc: 3  # CHANGE THIS to your number of classes
 scales: # model compound scaling constants
-  n: [0.50, 0.25, 1024] # YOLOv11n summary: 319 layers, 2624080 parameters, 2624064 gradients, 6.6 GFLOPs
+  n: [0.50, 0.25, 1024]
 
 # YOLOv11n backbone
 backbone:
@@ -21,7 +21,7 @@ backbone:
   - [-1, 2, C3k2, [1024, True, 0.5]]
   - [-1, 1, SPPF, [1024, 5]]  # 9
 
-# YOLOv11n head with P2 detection layer
+# YOLOv11n head - simplified P2 without backbone concat
 head:
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
   - [[-1, 7], 1, Concat, [1]]  # cat backbone P4
@@ -31,10 +31,11 @@ head:
   - [[-1, 5], 1, Concat, [1]]  # cat backbone P3
   - [-1, 2, C3k2, [256, False]]  # 15
 
+  # P2 head - upsample from P3 without backbone concat
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
-  - [[-1, 2], 1, Concat, [1]]  # cat backbone P2 (layer 2, not layer 1)
   - [-1, 2, C3k2, [128, False]]  # 18 (P2/4-small)
 
+  # Bottom-up path
   - [-1, 1, Conv, [128, 3, 2]]
   - [[-1, 15], 1, Concat, [1]]  # cat head P3
   - [-1, 2, C3k2, [256, False]]  # 21 (P3/8-medium)
