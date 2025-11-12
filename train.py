@@ -8,10 +8,10 @@ import time
 from datetime import datetime
 
 
-def train_model(model_config, data_yaml, model_name, output_dir="results_custom"):
-    """Train YOLO model with customized configuration."""
+def train_model(model_config, data_yaml, model_name, output_dir):
+    """Train YOLO model with custom configuration."""
     device = '0' if torch.cuda.is_available() else 'cpu'
-    save_dir = Path(output_dir) / model_name
+    save_dir = Path(output_dir)
 
     print(f"\n{'='*80}")
     print(f"TRAINING {model_name.upper()}")
@@ -22,7 +22,7 @@ def train_model(model_config, data_yaml, model_name, output_dir="results_custom"
 
     model = YOLO(model_config)
 
-    # Training configuration
+    # Optimized training configuration
     config = {
         "epochs": 150,
         "batch": 32,
@@ -73,10 +73,10 @@ def train_model(model_config, data_yaml, model_name, output_dir="results_custom"
     return best_weights
 
 
-def validate_model(weights_path, data_yaml, model_name, output_dir="results_custom"):
-    """Validate a trained YOLO model and return key metrics."""
+def validate_model(weights_path, data_yaml, model_name, output_dir):
+    """Validate a trained YOLO model and save metrics."""
     device = '0' if torch.cuda.is_available() else 'cpu'
-    save_dir = Path(output_dir) / model_name
+    save_dir = Path(output_dir)
 
     print(f"\n{'='*80}")
     print(f"VALIDATING {model_name.upper()}")
@@ -96,7 +96,7 @@ def validate_model(weights_path, data_yaml, model_name, output_dir="results_cust
         exist_ok=True
     )
 
-    # Extract metrics
+    # Collect metrics
     metrics = {
         "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Model": model_name,
@@ -116,7 +116,7 @@ def validate_model(weights_path, data_yaml, model_name, output_dir="results_cust
     print("="*80 + "\n")
 
     # Save metrics to CSV
-    csv_path = Path(output_dir) / "training_results.csv"
+    csv_path = Path(output_dir).parent / "training_results.csv"
     file_exists = csv_path.exists()
 
     with open(csv_path, 'a', newline='') as csvfile:
@@ -130,14 +130,15 @@ def validate_model(weights_path, data_yaml, model_name, output_dir="results_cust
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Custom YOLO11 Training Script with Metrics Export")
+    parser = argparse.ArgumentParser(description="Custom YOLO11 Training Script with Timestamped Output")
     parser.add_argument('--data', type=str, required=True, help='Path to data.yaml')
     parser.add_argument('--model', type=str, required=True,
                         choices=['baseline', 'simam', 'cbam', 'cbam+simam'],
-                        help='Model name to train (baseline/simam/cbam/cbam+simam)')
-    parser.add_argument('--output', type=str, default='results_custom', help='Output directory')
+                        help='Model to train (baseline/simam/cbam/cbam+simam)')
+    parser.add_argument('--output', type=str, default='results_custom', help='Base output directory')
     args = parser.parse_args()
 
+    # Define model configs
     model_configs = {
         'baseline': 'yolo11n.yaml',
         'simam': 'ultralytics/cfg/models/11/yolo11-simam.yaml',
@@ -145,18 +146,24 @@ def main():
         'cbam+simam': 'ultralytics/cfg/models/11/yolo11-cs.yaml',
     }
 
+    # Timestamped subfolder
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    run_dir = Path(args.output) / f"{args.model}_{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
     print(f"\n{'#'*80}")
     print(f" STARTING TRAINING FOR MODEL: {args.model.upper()} ")
+    print(f" Output Directory: {run_dir}")
     print(f"{'#'*80}\n")
 
     best_weights = train_model(
         model_configs[args.model],
         args.data,
         args.model,
-        args.output
+        run_dir
     )
 
-    validate_model(best_weights, args.data, args.model, args.output)
+    validate_model(best_weights, args.data, args.model, run_dir)
 
 
 if __name__ == '__main__':
