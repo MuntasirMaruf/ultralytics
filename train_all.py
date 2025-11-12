@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Optimized Training for YOLO11 with Selective Attention
-Uses improved strategies to actually beat baseline performance
-"""
-
 import torch
 from pathlib import Path
 from ultralytics import YOLO
@@ -12,15 +6,6 @@ import argparse
 
 
 def train_model(model_config, data_yaml, model_name, output_dir="results_optimized"):
-    """
-    Train a single model with optimized hyperparameters.
-    
-    Args:
-        model_config (str): Model YAML path
-        data_yaml (str): Data YAML path  
-        model_name (str): Name for this model (baseline/simam/cbam)
-        output_dir (str): Output directory
-    """
     device = '0' if torch.cuda.is_available() else 'cpu'
     save_dir = Path(output_dir) / model_name
     
@@ -217,8 +202,8 @@ def main():
     parser.add_argument('--data', type=str, default='data.yaml', help='Path to data.yaml')
     parser.add_argument('--output', type=str, default='results_optimized', help='Output directory')
     parser.add_argument('--models', type=str, nargs='+', 
-                       default=['baseline', 'simam', 'cbam', 'cbam-p5'],
-                       choices=['baseline', 'simam', 'cbam', 'cbam-p5'],
+                       default=['baseline', 'simam', 'cbam', 'cbam+simam'],
+                       choices=['baseline', 'simam', 'cbam', 'cbam+simam'],
                        help='Which models to train (default: all 4)')
     
     args = parser.parse_args()
@@ -226,9 +211,9 @@ def main():
     # Model configurations (using selective attention)
     model_configs = {
         'baseline': 'yolo11n.yaml',
-        'simam': 'ultralytics/cfg/models/11/yolo11-simam-selective.yaml',
-        'cbam': 'ultralytics/cfg/models/11/yolo11-cbam-selective.yaml',
-        'cbam-p5': 'ultralytics/cfg/models/11/yolo11-cbam-p5only.yaml',
+        'simam': 'ultralytics/cfg/models/11/yolo11-cbam.yaml',
+        'cbam': 'ultralytics/cfg/models/11/yolo11-simam.yaml',
+        'cbam+simam': 'ultralytics/cfg/models/11/yolo11-cs.yaml',
     }
     
     weights = {}
