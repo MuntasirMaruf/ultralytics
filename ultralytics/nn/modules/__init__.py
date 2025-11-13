@@ -23,7 +23,6 @@ from .block import (
     C2PSA,
     C3,
     C3TR,
-    CBAMCustom,
     CIB,
     DFL,
     ELAN1,
@@ -59,8 +58,10 @@ from .block import (
     RepVGGDW,
     ResNetLayer,
     SCDown,
-    SimAM,
     TorchVision,
+    ChannelAttentionCustom,
+    SpatialAttentionCustom,
+    CBAMCustom,
 )
 from .conv import (
     CBAM,
@@ -112,7 +113,6 @@ __all__ = (
     "C3",
     "C3TR",
     "CBAM",
-    "CBAMCustom",
     "CIB",
     "DFL",
     "ELAN1",
@@ -174,7 +174,6 @@ __all__ = (
     "SCDown",
     "Segment",
     "SpatialAttention",
-    "SimAM",
     "TorchVision",
     "TransformerBlock",
     "TransformerEncoderLayer",
@@ -183,4 +182,7 @@ __all__ = (
     "YOLOEDetect",
     "YOLOESegment",
     "v10Detect",
+    "ChannelAttentionCustom",
+    "SpatialAttentionCustom",
+    "CBAMCustom",
 )

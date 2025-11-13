@@ -52,12 +52,9 @@ __all__ = (
     "ResNetLayer",
     "SCDown",
     "TorchVision",
-    'CBAMCustom',
-    'SimAM',
-    'EfficientAttention',
-    'CoordinateAttention',
-    'ChannelAttention',
-    'SpatialAttention'
+    "ChannelAttentionCustom",
+    "SpatialAttentionCustom",
+    "CBAMCustom",
 )
 
 
@@ -2211,193 +2208,53 @@ class SimAM(nn.Module):
         return x * attention
 
 
-# ============================================================================
-# Hybrid Attention (Combines Channel and Spatial Efficiently)
-# ============================================================================
-
-class EfficientAttention(nn.Module):
-    """
-    Efficient hybrid attention that combines channel and spatial attention.
-    
-    More efficient than CBAM for large feature maps.
-    Uses separable convolutions and optimized pooling.
-    
-    Use this if CBAM is too slow for your application.
-    """
-    
-    def __init__(self, c1=None, c2=None, reduction=16, kernel_size=7):
-        """
-        Args:
-            c1 (int, optional): Input channels
-            c2 (int, optional): Output channels
-            reduction (int): Channel reduction ratio
-            kernel_size (int): Spatial kernel size
-        """
+"""
+CBAM (Convolutional Block Attention Module) for Ultralytics YOLO
+Add this to: ultralytics/nn/modules/block.py
+"""
+class ChannelAttentionCustom(nn.Module):
+    """Channel Attention Module"""
+    def __init__(self, channels, reduction=16):
         super().__init__()
-        
-        self.c1 = c1
-        self.c2 = c2 or c1
-        self._initialized = False
-        
-        if c1 is not None:
-            self._init_modules(reduction, kernel_size)
-    
-    def _init_modules(self, reduction, kernel_size):
-        """Initialize modules."""
-        if self._initialized:
-            return
-        
-        reduced_c = max(self.c1 // reduction, 8)
-        
-        # Efficient channel attention using 1x1 convs
-        self.channel_attn = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(self.c1, reduced_c, 1, bias=False),
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Conv2d(channels, channels // reduction, 1, bias=False),
             nn.ReLU(inplace=True),
-            nn.Conv2d(reduced_c, self.c1, 1, bias=False),
-            nn.Sigmoid()
+            nn.Conv2d(channels // reduction, channels, 1, bias=False)
         )
-        
-        # Efficient spatial attention using depthwise separable convolution
-        padding = kernel_size // 2
-        self.spatial_attn = nn.Sequential(
-            nn.Conv2d(self.c1, self.c1, kernel_size, padding=padding, 
-                     groups=self.c1, bias=False),  # Depthwise
-            nn.Conv2d(self.c1, 1, 1, bias=False),  # Pointwise
-            nn.Sigmoid()
-        )
-        
-        # Optional projection
-        if self.c2 != self.c1:
-            self.proj = nn.Conv2d(self.c1, self.c2, 1, bias=False)
-        else:
-            self.proj = nn.Identity()
-        
-        self._initialized = True
-    
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
-        """Apply efficient attention."""
-        if not self._initialized:
-            self.c1 = x.shape[1]
-            if self.c2 is None:
-                self.c2 = self.c1
-            self._init_modules(16, 7)
-            if x.is_cuda:
-                self.to(x.device)
-        
-        # Parallel channel and spatial attention (more efficient)
-        ca = self.channel_attn(x)
-        sa = self.spatial_attn(x)
-        
-        # Combine both attentions
-        x = x * ca * sa
-        x = self.proj(x)
-        
-        return x
+        avg_out = self.fc(self.avg_pool(x))
+        max_out = self.fc(self.max_pool(x))
+        out = self.sigmoid(avg_out + max_out)
+        return x * out
 
 
-# ============================================================================
-# Coordinate Attention (Better than CBAM for Detection)
-# ============================================================================
-
-class CoordinateAttention(nn.Module):
-    """
-    Coordinate Attention: More effective than CBAM for object detection.
-    
-    Captures spatial information more precisely than CBAM's spatial attention.
-    Better for tasks requiring precise localization (like vehicle detection).
-    
-    Paper: Hou et al., "Coordinate Attention for Efficient Mobile Network Design" (CVPR 2021)
-    
-    Benefits over CBAM:
-    - Preserves precise positional information
-    - Lower computational cost
-    - Better for detection tasks
-    """
-    
-    def __init__(self, c1=None, c2=None, reduction=32):
-        """
-        Args:
-            c1 (int, optional): Input channels
-            c2 (int, optional): Output channels
-            reduction (int): Reduction ratio
-        """
+class SpatialAttentionCustom(nn.Module):
+    """Spatial Attention Module"""
+    def __init__(self, kernel_size=7):
         super().__init__()
-        
-        self.c1 = c1
-        self.c2 = c2 or c1
-        self._initialized = False
-        
-        if c1 is not None:
-            self._init_modules(reduction)
-    
-    def _init_modules(self, reduction):
-        """Initialize coordinate attention modules."""
-        if self._initialized:
-            return
-        
-        reduced_c = max(self.c1 // reduction, 8)
-        
-        # Pooling along height and width separately
-        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
-        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
-        
-        # Shared transform
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(self.c1, reduced_c, 1, bias=False),
-            nn.BatchNorm2d(reduced_c),
-            nn.SiLU(inplace=True)  # SiLU works better than ReLU
-        )
-        
-        # Separate attention for height and width
-        self.conv_h = nn.Sequential(
-            nn.Conv2d(reduced_c, self.c1, 1, bias=False),
-            nn.BatchNorm2d(self.c1)
-        )
-        self.conv_w = nn.Sequential(
-            nn.Conv2d(reduced_c, self.c1, 1, bias=False),
-            nn.BatchNorm2d(self.c1)
-        )
-        
-        # Optional projection
-        if self.c2 != self.c1:
-            self.proj = nn.Conv2d(self.c1, self.c2, 1, bias=False)
-        else:
-            self.proj = nn.Identity()
-        
-        self._initialized = True
-    
+        self.conv = nn.Conv2d(2, 1, kernel_size, padding=kernel_size//2, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
-        """Apply coordinate attention."""
-        if not self._initialized:
-            self.c1 = x.shape[1]
-            if self.c2 is None:
-                self.c2 = self.c1
-            self._init_modules(32)
-            if x.is_cuda:
-                self.to(x.device)
-        
-        identity = x
-        n, c, h, w = x.size()
-        
-        # Encode spatial information in vertical and horizontal directions
-        x_h = self.pool_h(x)  # [N, C, H, 1]
-        x_w = self.pool_w(x).permute(0, 1, 3, 2)  # [N, C, W, 1]
-        
-        # Concatenate and transform
-        y = torch.cat([x_h, x_w], dim=2)  # [N, C, H+W, 1]
-        y = self.conv1(y)
-        
-        # Split back to height and width
-        x_h, x_w = torch.split(y, [h, w], dim=2)
-        x_w = x_w.permute(0, 1, 3, 2)
-        
-        # Generate attention
-        a_h = self.conv_h(x_h).sigmoid()  # [N, C, H, 1]
-        a_w = self.conv_w(x_w).sigmoid()  # [N, C, 1, W]
-        
-        # Apply attention
-        out = identity * a_h * a_w
-        out = self.proj(out)
-        
-        return out
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        out = torch.cat([avg_out, max_out], dim=1)
+        out = self.sigmoid(self.conv(out))
+        return x * out
+
+
+class CBAMCustom(nn.Module):
+    """Convolutional Block Attention Module"""
+    def __init__(self, channels, reduction=16, kernel_size=7):
+        super().__init__()
+        self.channel_att = ChannelAttentionCustom(channels, reduction)
+        self.spatial_att = SpatialAttentionCustom(kernel_size)
+
+    def forward(self, x):
+        x = self.channel_att(x)
+        x = self.spatial_att(x)
+        return x
