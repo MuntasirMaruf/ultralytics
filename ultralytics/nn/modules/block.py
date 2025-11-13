@@ -2260,7 +2260,8 @@ class CBAMCustom(nn.Module):
         return x
     
 
-    class SimAM(nn.Module):
+
+class SimAM(nn.Module):
     """
     Improved SimAM implementation with numerical stability and export support.
     
