@@ -2248,11 +2248,21 @@ class SpatialAttentionCustom(nn.Module):
 
 
 class CBAMCustom(nn.Module):
-    """Convolutional Block Attention Module"""
-    def __init__(self, channels, reduction=16, kernel_size=7):
+    """Convolutional Block Attention Module — Ultralytics-compatible"""
+    def __init__(self, c1, c2, reduction=16, kernel_size=7):
+        """
+        Args:
+            c1 (int): input channels
+            c2 (int): output channels (should equal c1 for attention modules)
+            reduction (int): channel reduction ratio
+            kernel_size (int): spatial attention kernel size (odd)
+        """
         super().__init__()
+        # Use c1 for channels (standard for attention blocks; c2 should == c1)
+        channels = c1
         self.channel_att = ChannelAttentionCustom(channels, reduction)
         self.spatial_att = SpatialAttentionCustom(kernel_size)
+        self.c2 = c2  # Required by YOLO engine for parsing
 
     def forward(self, x):
         x = self.channel_att(x)
