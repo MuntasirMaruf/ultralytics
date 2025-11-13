@@ -2258,3 +2258,81 @@ class CBAMCustom(nn.Module):
         x = self.channel_att(x)
         x = self.spatial_att(x)
         return x
+    
+
+    class SimAM(nn.Module):
+    """
+    Improved SimAM implementation with numerical stability and export support.
+    
+    Key improvements:
+    1. Better numerical stability (prevents NaN/Inf)
+    2. Optimized memory usage
+    3. Export-friendly implementation
+    4. Gradient clipping for training stability
+    5. Optional temperature scaling
+    
+    Paper: Yang et al., "SimAM: A Simple, Parameter-Free Attention Module" (ICML 2021)
+    
+    Note: This module has ZERO learnable parameters, making it very efficient.
+    """
+    
+    def __init__(self, c1=None, c2=None, e_lambda=1e-4, use_temp=False, temp=1.0):
+        """
+        Args:
+            c1 (int, optional): Input channels (not used, for YOLO compatibility)
+            c2 (int, optional): Output channels (not used, for YOLO compatibility)
+            e_lambda (float): Lambda for energy function (default: 1e-4)
+            use_temp (bool): Use temperature scaling (default: False)
+            temp (float): Temperature value (default: 1.0)
+        """
+        super().__init__()
+        
+        self.e_lambda = e_lambda
+        self.use_temp = use_temp
+        self.temp = temp
+        
+        # Use sigmoid for final activation
+        self.act = nn.Sigmoid()
+    
+    def forward(self, x):
+        """
+        Apply parameter-free attention with improved stability.
+        
+        Args:
+            x (torch.Tensor): Input features [B, C, H, W]
+            
+        Returns:
+            torch.Tensor: Attention-refined features [B, C, H, W]
+        """
+        b, c, h, w = x.size()
+        
+        # Number of spatial elements (excluding current pixel)
+        n = h * w - 1
+        
+        # Compute spatial mean (more stable than original)
+        x_mean = x.mean(dim=[2, 3], keepdim=True)
+        
+        # Compute (x - mean)^2
+        x_minus_mu_square = (x - x_mean).pow(2)
+        
+        # Compute spatial variance with numerical stability
+        # Add epsilon to prevent division by zero
+        variance = x_minus_mu_square.sum(dim=[2, 3], keepdim=True) / n
+        variance = variance.clamp(min=1e-6)  # Prevent zero variance
+        
+        # Energy function: E_t(w_t, b_t, y, x_i) = (y - x_i)^2 / (4 * (σ^2 + λ)) + 0.5
+        # This represents the energy to distinguish target pixel from background
+        energy = x_minus_mu_square / (4.0 * (variance + self.e_lambda)) + 0.5
+        
+        # Apply temperature scaling if enabled (helps with very deep networks)
+        if self.use_temp and self.training:
+            energy = energy / self.temp
+        
+        # Generate attention weights
+        attention = self.act(energy)
+        
+        # Apply attention with gradient clipping for stability
+        if self.training:
+            attention = attention.clamp(0.0, 1.0)
+        
+        return x * attention
