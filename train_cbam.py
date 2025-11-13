@@ -187,7 +187,7 @@ def train_model_c_minority():
     print("TRAINING MODEL C: YOLOv11s @ 640px (Minority Specialist)")
     print("="*70)
     
-    model = YOLO('yolov11n.pt')
+    model = YOLO('yolo11s.pt')
     
     results = model.train(
         # Data — UPDATED PATH
