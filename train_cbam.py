@@ -19,8 +19,8 @@ def train_model_a_cbam():
     print("="*70)
     
     # Load custom architecture with COCO pretrained weights
-    model = YOLO('yolov11s.pt')  # Load weights first
-    model = YOLO('/content/ultralytics/ultralytics/cfg/models/11/yolo11s-cbam.yaml').load('yolov11s.pt')  # Transfer to custom architecture
+    model = YOLO('yolo11s.pt')  # Load weights first
+    model = YOLO('/content/ultralytics/ultralytics/cfg/models/11/yolo11s-cbam.yaml').load('yolo11s.pt')  # Transfer to custom architecture
     
     results = model.train(
         # Data — UPDATED PATH
