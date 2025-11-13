@@ -64,7 +64,6 @@ from ultralytics.nn.modules import (
     RTDETRDecoder,
     SCDown,
     Segment,
-    SimAM,
     TorchVision,
     WorldDetect,
     YOLOEDetect,
